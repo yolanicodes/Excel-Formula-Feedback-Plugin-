@@ -1,0 +1,24 @@
+# Compiled AMD JS (built by `grunt amd` from amd/src/*.js)
+amd/build/
+
+# Node/Grunt tooling artifacts, if you have a package.json for grunt
+node_modules/
+
+# Compiled/minified CSS if you generate it from SCSS/LESS
+styles.min.css
+
+# Moodle-generated caches (only relevant if a moodle root is inside this repo)
+/lang/en/qtype_excelformula.php-cache
+*.orig
+*.rej
+
+# OS/editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# PHPUnit/Behat generated artifacts
+/tests/behat/behat.yml
+phpunit.xml

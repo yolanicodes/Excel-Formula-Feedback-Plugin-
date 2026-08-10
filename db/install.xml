@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  db/install.xml
+  This file defines the database tables that store your question data.
+  Moodle reads this file automatically when you install the plugin.
+
+  SCHEMA (matches Database_diagram.png):
+
+  question_excelformula_options   (1 per question)
+    - holds a reference to the question and the parsed cell-data
+      for the spreadsheet the student sees. The actual uploaded
+      .xlsx/.xls file lives in Moodle's file storage, keyed by
+      component=qtype_excelformula, filearea=celldatafile,
+      itemid=questionid. spreadsheetdata is the JSON we parse out
+      of that file at save time (cellref -> value), so grading code
+      doesn't need to re-open the spreadsheet on every attempt.
+
+  question_excelformula_answers   (1...* per question)
+    - one row per graded cell, extracted by parsing the uploaded
+      answer-key spreadsheet (component=qtype_excelformula,
+      filearea=answerkeyfile, itemid=questionid).
+
+  question_excelformula_answers_answercase   (1...* per answer)
+    - the acceptable answer case(s) for a given cell (e.g. several
+      different formulas/values that should all be marked correct
+      for that cell), also extracted from the answer-key file.
+
+  You do NOT need to create the tables yourself — Moodle handles that.
+-->
+<XMLDB PATH="question/type/excelformula/db" VERSION="20260619" COMMENT="XMLDB file for qtype_excelformula">
+  <TABLES>
+
+    <TABLE NAME="qtype_excelformula_options" COMMENT="Per-question settings: link to the parsed cell-data spreadsheet">
+      <FIELDS>
+
+        <!-- id: Every Moodle table needs this. It is the unique identifier for each row. -->
+        <FIELD NAME="id"             TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+
+        <!-- questionid: Links this row to the question in Moodle's main questions table. -->
+        <FIELD NAME="questionid"     TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0"
+               COMMENT="Foreign key link to question.id"/>
+
+        <!--
+          celldataitemid: reference to the itemid stored in Moodle File API
+          for the uploaded "celldatafile" spreadsheet. The file is kept in file
+          storage keyed by component=qtype_excelformula, filearea=celldatafile,
+          itemid=celldataitemid.
+        -->
+        <FIELD NAME="celldataitemid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"
+               COMMENT="Moodle File API itemid for the uploaded spreadsheet"/>
+
+        <!--
+          answerkeyitemid: reference to the itemid stored in Moodle File API
+          for the uploaded "answerkeyfile" spreadsheet. The file is kept in file
+          storage keyed by component=qtype_excelformula, filearea=answerkeyfile,
+          itemid=answerkeyitemid.
+        -->
+        <FIELD NAME="answerkeyitemid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"
+               COMMENT="Moodle File API itemid for the uploaded answer key spreadsheet"/>
+                <!-- Cached JSON of cell data parsed from the uploaded spreadsheet,
+     e.g. {"A1":10,"B1":20}. Populated at save time so grading
+     never has to re-open the file on every quiz attempt. -->
+<FIELD NAME="spreadsheetdata" TYPE="text" NOTNULL="false"
+       COMMENT="JSON-encoded cell data parsed from celldatafile at save time"/>
+
+      </FIELDS>
+     
+      <KEYS>
+        <KEY NAME="primary"    TYPE="primary" FIELDS="id"/>
+        <KEY NAME="questionid" TYPE="foreign" FIELDS="questionid" REFTABLE="question" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="qtype_excelformula_answers" COMMENT="One row per graded cell, parsed from the uploaded answer-key spreadsheet">
+      <FIELDS>
+
+        <!-- ansid: corresponds to "ansID" in the diagram. -->
+        <FIELD NAME="ansid"          TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+
+        <!-- questionid: links straight back to the question (1 question -> many answers). -->
+        <FIELD NAME="questionid"     TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0"
+               COMMENT="Foreign key link to question.id"/>
+
+        <!-- cellref: which spreadsheet cell this answer grades, e.g. B3. -->
+        <FIELD NAME="cellref"        TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT=""
+               COMMENT="Spreadsheet cell reference this answer grades, e.g. B3"/>
+
+        <!-- sheetname: which worksheet cellref belongs to, since the same
+             cell reference (e.g. B3) can exist on multiple sheets. -->
+        <FIELD NAME="sheetname"      TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT=""
+               COMMENT="Worksheet name this cellref belongs to, e.g. Sheet1"/>
+
+        <FIELD NAME="formulaweight"  TYPE="number" LENGTH="20" DECIMALS="10" NOTNULL="true" DEFAULT="0"
+               COMMENT="Weight given to the structure/formula matching for this cell"/>
+
+        <FIELD NAME="answerweight"   TYPE="number" LENGTH="20" DECIMALS="10" NOTNULL="true" DEFAULT="0"
+               COMMENT="Weight given to the resulting value matching for this cell"/>
+
+        <FIELD NAME="markallocation" TYPE="number" LENGTH="20" DECIMALS="10" NOTNULL="true" DEFAULT="0"
+               COMMENT="Marks allocated to this cell out of the question's total"/>
+
+        <FIELD NAME="rules"          TYPE="text" NOTNULL="false"
+               COMMENT="JSON-encoded grading rules for this cell, e.g. tolerance"/>
+
+        <FIELD NAME="feedback"       TYPE="text" NOTNULL="false"
+               COMMENT="Feedback shown for this cell, regardless of which case matched"/>
+
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary"    TYPE="primary" FIELDS="ansid"/>
+        <KEY NAME="questionid" TYPE="foreign" FIELDS="questionid" REFTABLE="question" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="qtype_excelformula_anscase" COMMENT="Acceptable answer case(s) for a given qtype_excelformula_answers row">
+      <FIELDS>
+
+        <!-- anscaseid: corresponds to "ansCaseID" in the diagram. -->
+        <FIELD NAME="anscaseid"   TYPE="int"  LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+
+        <!-- ansid: links back to the parent answer row (1 answer -> many cases). -->
+        <FIELD NAME="ansid"       TYPE="int"  LENGTH="10" NOTNULL="true" DEFAULT="0"
+               COMMENT="Foreign key link to qtype_excelformula_answers.ansid"/>
+
+        <FIELD NAME="casemark"    TYPE="number" LENGTH="20" DECIMALS="10" NOTNULL="true" DEFAULT="0"
+               COMMENT="Mark awarded when this case matches"/>
+
+        <FIELD NAME="casetype"    TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="formula"
+               COMMENT="How answertext should be interpreted, e.g. formula or value"/>
+
+        <FIELD NAME="caseweight"  TYPE="number" LENGTH="20" DECIMALS="10" NOTNULL="true" DEFAULT="0"
+               COMMENT="Relative weight of this case versus other cases for the same cell"/>
+
+        <FIELD NAME="answertext"  TYPE="text" NOTNULL="true"
+               COMMENT="The accepted formula or value for this case, e.g. =SUM(A1:A3)"/>
+
+        <FIELD NAME="casefeedback" TYPE="text" NOTNULL="false"
+               COMMENT="Feedback shown specifically when this case matches"/>
+
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="anscaseid"/>
+        <KEY NAME="ansid"   TYPE="foreign" FIELDS="ansid" REFTABLE="qtype_excelformula_answers" REFFIELDS="ansid"/>
+      </KEYS>
+    </TABLE>
+
+  </TABLES>
+</XMLDB>

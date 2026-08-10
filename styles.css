@@ -1,0 +1,256 @@
+/* ============================================================
+   styles.css
+   Visual styling for the Excel Formula question type.
+   You can edit these to change how the question looks.
+   ============================================================ */
+
+/* The cell data table shown above the formula input */
+.qtype_excelformula_celldata {
+    margin-bottom: 1rem;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 12px 16px;
+    display: inline-block;
+    min-width: 200px;
+    max-width: 100%;
+}
+
+/* The table inside the cell data section */
+.qtype_excelformula_table {
+    margin-bottom: 0;
+    font-size: 0.92em;
+}
+
+/* Cell reference column (A1, B2, etc.) */
+.qtype_excelformula_cellref {
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: bold;
+    color: #0056b3;
+    padding: 4px 10px !important;
+    white-space: nowrap;
+}
+
+/* Cell value column */
+.qtype_excelformula_cellval {
+    font-family: 'Courier New', Courier, monospace;
+    padding: 4px 10px !important;
+    text-align: right;
+}
+
+/* The label above the formula input box */
+.qtype_excelformula_label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    margin-top: 1rem;
+}
+
+/* The formula text input */
+.qtype_excelformula_input {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1em;
+    max-width: 480px;
+    width: 100%;
+}
+
+/* Feedback area shown after submission */
+.qtype_excelformula_feedback {
+    margin-top: 1rem;
+    padding: 10px 14px;
+    border-left: 4px solid #6c757d;
+    background: #f1f3f5;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.95em;
+}
+
+/* The line showing what result their formula produced */
+.qtype_excelformula_result {
+    margin-bottom: 0.4rem;
+    color: #495057;
+}
+
+/* The line showing the correct formula */
+.qtype_excelformula_correctanswer {
+    margin-bottom: 0.4rem;
+    color: #155724;
+    font-weight: 500;
+}
+
+/* Error message when formula can't be evaluated */
+.qtype_excelformula_error {
+    font-style: italic;
+}
+/* ── Spreadsheet grid wrapper ── */
+.qtype_excelformula_grid_wrap {
+    overflow-x: auto;
+    margin-bottom: 1.2rem;
+    border: 1px solid #D0D7E0;
+    border-radius: 6px;
+}
+
+/* ── The grid table itself ── */
+.qtype_excelformula_grid {
+    border-collapse: collapse;
+    font-family: 'Calibri', 'Arial', sans-serif;
+    font-size: 0.9em;
+    min-width: 100%;
+    table-layout: fixed;
+}
+
+/* ── Column header cells (A, B, C…) ── */
+.qtype_excelformula_col_header,
+.qtype_excelformula_corner {
+    background: #F4F6F8;
+    border: 1px solid #C8D0DC;
+    padding: 4px 6px;
+    text-align: center;
+    font-size: 0.82em;
+    font-weight: 600;
+    color: #6B7A90;
+    user-select: none;
+    white-space: nowrap;
+}
+
+/* ── Row header cells (1, 2, 3…) ── */
+.qtype_excelformula_row_header {
+    background: #F4F6F8;
+    border: 1px solid #C8D0DC;
+    padding: 4px 6px;
+    text-align: center;
+    font-size: 0.82em;
+    font-weight: 600;
+    color: #6B7A90;
+    user-select: none;
+    white-space: nowrap;
+    min-width: 32px;
+}
+
+/* ── Regular data cells ── */
+.qtype_excelformula_grid_cell {
+    border: 1px solid #D0D7E0;
+    padding: 4px 8px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    background: #ffffff;
+}
+
+/* ── Row hover highlight ── */
+.qtype_excelformula_grid_row:hover .qtype_excelformula_grid_cell {
+    background-color: #F8FAFC;
+}
+/* NEW — add to styles.css */
+.qtype_excelformula_sheet_tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.qtype_excelformula_sheet_tab {
+    background: #F4F6F8;
+    border: 1px solid #C8D0DC;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    padding: 4px 12px;
+    font-size: 0.85em;
+    cursor: pointer;
+}
+
+.qtype_excelformula_sheet_tab.active {
+    background: #ffffff;
+    font-weight: 600;
+    color: #0056b3;
+}
+/* ── Wrapper for all per-cell answer inputs ── */
+.qtype_excelformula_cell_answers {
+    margin-top: 1rem;
+}
+
+/* ── One worksheet's group of graded-cell answers ── */
+.qtype_excelformula_sheet_group {
+    margin-bottom: 1.2rem;
+}
+
+.qtype_excelformula_sheet_group_title {
+    font-size: 0.95em;
+    font-weight: 600;
+    color: #6B7A90;
+    margin-bottom: 0.4rem;
+}
+
+/* ── One graded cell's answer block ── */
+.qtype_excelformula_cell_answer {
+    padding: 10px 14px;
+    margin-bottom: 0.75rem;
+    border: 1px solid #dee2e6;
+    border-left: 4px solid #C8D0DC;
+    border-radius: 0 4px 4px 0;
+    background: #f8f9fa;
+}
+
+/* The cell currently awaiting an answer */
+.qtype_excelformula_cell_answer[data-active="1"] {
+    border-left-color: #0056b3;
+    background: #F0F7FB;
+}
+
+/* Already-graded cells read as settled, not editable */
+.qtype_excelformula_cell_answer[data-graded="1"] {
+    background: #ffffff;
+}
+
+/* Cells not yet reached in the answer order */
+.qtype_excelformula_cell_answer[data-graded="0"][data-active="0"] {
+    opacity: 0.6;
+}
+
+.qtype_excelformula_submit_cell {
+    margin-left: 0.5rem;
+    vertical-align: middle;
+}
+
+.qtype_excelformula_cell_feedback {
+    margin-top: 0.5rem;
+    font-size: 0.92em;
+}
+
+.qtype_excelformula_cell_mark {
+    margin-bottom: 0.3rem;
+    font-weight: 500;
+    color: #495057;
+}
+
+/* ── Graded-state colouring, applied to the whole cell block ── */
+.qtype_excelformula_state_gradedright {
+    border-left-color: #2E7D32;
+    background: #F1F8F1;
+}
+.qtype_excelformula_state_gradedright .qtype_excelformula_cell_mark {
+    color: #155724;
+}
+
+.qtype_excelformula_state_gradedpartial {
+    border-left-color: #E65100;
+    background: #FFF8F3;
+}
+.qtype_excelformula_state_gradedpartial .qtype_excelformula_cell_mark {
+    color: #E65100;
+}
+
+.qtype_excelformula_state_gradedwrong {
+    border-left-color: #C62828;
+    background: #FDF2F2;
+}
+.qtype_excelformula_state_gradedwrong .qtype_excelformula_cell_mark {
+    color: #C62828;
+}
+
+/* ── Highlight for the grid cell matching the active answer ── */
+.qtype_excelformula_grid_cell.qtype_excelformula_active_cell {
+    outline: 2px solid #0056b3;
+    outline-offset: -2px;
+    background-color: #F0F7FB;
+    position: relative;
+    z-index: 1;
+}
