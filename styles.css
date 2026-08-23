@@ -44,6 +44,7 @@
     font-weight: 600;
     margin-bottom: 0.4rem;
     margin-top: 1rem;
+    flex-basis: 100%;
 }
 
 /* The formula text input */
@@ -53,7 +54,11 @@
     max-width: 480px;
     width: 100%;
 }
-
+.qtype_excelformula_input.qtype_excelformula_cell_input {
+    width: auto;
+    flex: 1 1 auto;
+    min-width:0;
+}
 /* Feedback area shown after submission */
 .qtype_excelformula_feedback {
     margin-top: 1rem;
@@ -187,6 +192,10 @@
     border-left: 4px solid #C8D0DC;
     border-radius: 0 4px 4px 0;
     background: #f8f9fa;
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:0.5rem;
 }
 
 /* The cell currently awaiting an answer */
@@ -211,39 +220,13 @@
 }
 
 .qtype_excelformula_cell_feedback {
-    margin-top: 0.5rem;
-    font-size: 0.92em;
+    flex-basis: 100%;
 }
 
 .qtype_excelformula_cell_mark {
     margin-bottom: 0.3rem;
     font-weight: 500;
     color: #495057;
-}
-
-/* ── Graded-state colouring, applied to the whole cell block ── */
-.qtype_excelformula_state_gradedright {
-    border-left-color: #2E7D32;
-    background: #F1F8F1;
-}
-.qtype_excelformula_state_gradedright .qtype_excelformula_cell_mark {
-    color: #155724;
-}
-
-.qtype_excelformula_state_gradedpartial {
-    border-left-color: #E65100;
-    background: #FFF8F3;
-}
-.qtype_excelformula_state_gradedpartial .qtype_excelformula_cell_mark {
-    color: #E65100;
-}
-
-.qtype_excelformula_state_gradedwrong {
-    border-left-color: #C62828;
-    background: #FDF2F2;
-}
-.qtype_excelformula_state_gradedwrong .qtype_excelformula_cell_mark {
-    color: #C62828;
 }
 
 /* ── Highlight for the grid cell matching the active answer ── */
@@ -253,4 +236,202 @@
     background-color: #F0F7FB;
     position: relative;
     z-index: 1;
+}
+
+/* ── Edit-form answer-cases accordion ────────────────────────────── */
+
+/* Full-width wrapper — matches the Answer cases collapsible section. */
+#excelformula-answercases {
+    width: 100%;
+}
+
+/* ── Top-level cell group ("Answer N") ── */
+.excelformula-cell-group {
+    width: 100%;
+    border: 1px solid #C8D0DC;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+}
+
+/* ── Cell-group clickable header ── */
+.excelformula-cell-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    background: #F4F6F8;
+    border-bottom: 1px solid #C8D0DC;
+    cursor: pointer;
+    user-select: none;
+}
+
+.excelformula-cell-header:hover {
+    background: #E8EDF2;
+}
+
+/* "Answer N" label — pushes summary and remove-button to the right. */
+.excelformula-cell-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #343a40;
+    margin-right: 0.5rem;
+}
+
+/* Summary ("N answer cases | N total marks") — fills remaining space. */
+.excelformula-cell-summary {
+    flex: 1;
+    font-size: 0.85em;
+    color: #6B7A90;
+    white-space: nowrap;
+}
+
+/* ── Cell-group body (fields + nested case list) ── */
+.excelformula-cell-body {
+    padding: 0.75rem 1rem;
+    background: #fff;
+}
+
+/* ── Label/input pairs inside cell body or case body ── */
+.excelformula-field-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.6rem;
+}
+
+.excelformula-field-label {
+    min-width: 130px;
+    font-weight: 500;
+    font-size: 0.9em;
+    color: #495057;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.excelformula-field-row .form-control {
+    flex: 1;
+    max-width: 400px;
+}
+
+/* ── Nested answer-case list ── */
+.excelformula-case-list {
+    margin-top: 0.75rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #dee2e6;
+}
+
+/* ── One answer-case accordion row ("Answer Case N") ── */
+.excelformula-case-row {
+    border: 1px solid #E0E4EA;
+    border-radius: 4px;
+    margin-bottom: 0.4rem;
+    overflow: hidden;
+}
+
+/* ── Case-row clickable header ── */
+.excelformula-case-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.45rem 0.75rem;
+    background: #F8F9FA;
+    border-bottom: 1px solid #E0E4EA;
+    cursor: pointer;
+    user-select: none;
+}
+
+.excelformula-case-header:hover {
+    background: #F0F2F5;
+}
+
+/* "Answer Case N" label. */
+.excelformula-case-title {
+    flex: 1;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #495057;
+}
+
+/* ── Case body ── */
+.excelformula-case-body {
+    padding: 0.75rem 1rem;
+    background: #fff;
+}
+
+/* ── Add-case / add-cell button row ── */
+.excelformula-add-case-wrap {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* ── Chevron icons (shared) ── */
+.excelformula-chevron {
+    color: #6B7A90;
+    flex-shrink: 0;
+}
+/* ── Global "Add graded cell" button — sits below all Answer groups ── */
+.excelformula-global-add {
+    margin-top: 0.75rem;
+    text-align: left;
+}
+
+/* ── Field-row controls fill available width, no artificial cap ── */
+.excelformula-field-row .form-control {
+    flex: 1;
+    max-width: none;
+}
+/* Force the accordion container itself to fill the Moodle form column.
+   Moodle's form-inline on the parent felement overrides child widths
+   to auto; these rules restore block layout for our container only. */
+#excelformula-answercases {
+    display: block;
+    width: 100%;
+}
+
+.excelformula-cell-group,
+.excelformula-case-row,
+.excelformula-cell-body,
+.excelformula-case-body,
+.excelformula-case-list,
+.excelformula-global-add {
+    width: 100%;
+    box-sizing: border-box;
+}
+/* ── Graded-state colouring, applied to the whole cell block ── */
+/* ── Graded-state colouring, applied to the whole cell block ── */
+.qtype_excelformula_state_gradedright {
+    border-color: #c3e6cb;
+    border-left-color: #2E7D32;
+    background: #d4edda;
+}
+.qtype_excelformula_state_gradedright .qtype_excelformula_cell_mark,
+.qtype_excelformula_state_gradedright .qtype_excelformula_casefeedback {
+    color: #155724;
+}
+
+.qtype_excelformula_state_gradedpartial {
+    border-color: #ffeeba;
+    border-left-color: #E65100;
+    background: #fff3cd;
+}
+.qtype_excelformula_state_gradedpartial .qtype_excelformula_cell_mark,
+.qtype_excelformula_state_gradedpartial .qtype_excelformula_casefeedback {
+    color: #856404;
+}
+
+.qtype_excelformula_state_gradedwrong {
+    border-color: #f5c6cb;
+    border-left-color: #C62828;
+    background: #f8d7da;
+}
+.qtype_excelformula_state_gradedwrong .qtype_excelformula_cell_mark,
+.qtype_excelformula_state_gradedwrong .qtype_excelformula_casefeedback {
+    color: #721c24;
+}
+
+.qtype_excelformula_cell_answer[data-graded="1"] {
+    border-width: 1px;
+    border-radius: 0.25rem;
 }

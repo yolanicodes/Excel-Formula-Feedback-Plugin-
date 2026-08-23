@@ -118,3 +118,5 @@ $string['checkcell']             = 'Check';
 $string['checkingcell']          = 'Checking…';
 $string['markawarded']           = 'Mark: {$a->mark} / {$a->maxmark}';
 $string['markawardedtemplate']   = 'Mark: {mark} / {maxmark}';
+
+$string['cell_defaultfeedback'] = 'Default feedback';

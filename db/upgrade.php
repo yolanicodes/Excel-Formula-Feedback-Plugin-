@@ -76,6 +76,18 @@ function xmldb_qtype_excelformula_upgrade($oldversion) {
 
         upgrade_plugin_savepoint(true, 2026070601, 'qtype', 'excelformula');
     }
+        if ($oldversion < 2026082300) {
 
+        // Define field defaultfeedback to be added to qtype_excelformula_answers.
+        $table = new xmldb_table('qtype_excelformula_answers');
+        $field = new xmldb_field('defaultfeedback', XMLDB_TYPE_TEXT, null, null, null, null, null, 'sheetname');
+
+        // Conditionally launch add field defaultfeedback.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026082300, 'qtype', 'excelformula');
+    }
     return true;
 }

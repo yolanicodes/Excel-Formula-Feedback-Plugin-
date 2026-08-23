@@ -116,7 +116,7 @@ define(['jquery'], function($) {
         return (cells || []).map(function(cell) {
             cell.expanded = true;
             (cell.cases || []).forEach(function(c) {
-                c.expanded = true;
+                c.expanded = false;  // cases start collapsed, since they are nested
             });
             return cell;
         });
@@ -144,71 +144,54 @@ define(['jquery'], function($) {
     //   incrementally; the number of cells/cases is small enough
     //   that a full re-render on every change is not a problem.
     // ----------------------------------------------------------
-    function render() {
-        $container.empty();
+    // Replace the entire render() function with:
+function render() {
+    $container.empty();
 
-        state.forEach(function(cell, cellIndex) {
-            $container.append(renderCell(cell, cellIndex));
+    state.forEach(function(cell, cellIndex) {
+        $container.append(renderCell(cell, cellIndex));
+    });
+
+    // "Add graded cell" lives outside all Answer groups — one global control.
+    var $addCellBtn = $('<button type="button" class="btn btn-secondary btn-sm excelformula-add-cell">')
+        .text(STR.addcell)
+        .on('click', function() {
+            state.push({cellref: '', sheetname: '', totalmarks: 0, defaultfeedback: '',expanded: true, cases: []});
+            persist();
+            render();
         });
 
-        persist();
-    }
+    $container.append(
+        $('<div class="excelformula-global-add">').append($addCellBtn)
+    );
 
-    // ----------------------------------------------------------
+    persist();
+}
+
+ // ----------------------------------------------------------
     // renderCell(cell, cellIndex)
-    //   Builds the outer accordion row for one cell, including
-    //   its header (cellref input, total marks input, case count,
-    //   expand/collapse chevron) and -- if expanded -- the nested
-    //   case rows beneath it.
+    //   Builds one top-level "Answer N" accordion group.
+    //   The header is a clickable row (chevron + title + summary +
+    //   remove button). The body — shown only when expanded —
+    //   contains the cell-reference, worksheet, and total-marks
+    //   fields, followed by the nested answer-case sub-accordions.
     // ----------------------------------------------------------
     function renderCell(cell, cellIndex) {
         var $wrap = $('<div class="excelformula-cell-group">');
 
-        // ---- Header row ----
-        var $header = $('<div class="excelformula-cell-header">');
-
+        // ---- Accordion header: "Answer N" ----
         var $chevron = $('<span class="excelformula-chevron">')
-            .html(cell.expanded ? '<i class="fa fa-chevron-down fa-fw"></i>' : '<i class="fa fa-chevron-right fa-fw"></i>')
-            .on('click', function() {
-                cell.expanded = !cell.expanded;
-                render();
-            });
+            .html(cell.expanded
+                ? '<i class="fa fa-chevron-down fa-fw"></i>'
+                : '<i class="fa fa-chevron-right fa-fw"></i>'
+            );
 
-        // NEW
-        var $cellrefInput = $('<input type="text" class="form-control excelformula-cellref-input">')
-            .attr('placeholder', STR.newcellplaceholder)
-            .val(cell.cellref)
-            .on('input', function() {
-                cell.cellref = $(this).val();
-                persist();
-                updateSummary($header, cell);
-            });
+        var $title = $('<span class="excelformula-cell-title">')
+            .text('Answer ' + (cellIndex + 1));
 
-        // Worksheet this cell belongs to, since the same cellref (e.g. B3)
-        // can exist on more than one sheet.
-        var $sheetnameInput = $('<input type="text" class="form-control excelformula-sheetname-input">')
-            .attr('placeholder', STR.sheetnameplaceholder)
-            .val(cell.sheetname)
-            .on('input', function() {
-                cell.sheetname = $(this).val();
-                persist();
-            });
+        var $summary = $('<span class="excelformula-cell-summary">');
 
-        var $totalmarksInput = $('<input type="number" min="0" step="any" class="form-control excelformula-totalmarks-input">')
-            .val(cell.totalmarks)
-            .on('input', function() {
-                cell.totalmarks = parseFloat($(this).val()) || 0;
-                persist();
-                updateSummary($header, cell);
-            });
-
-       // NEW
-       var $cellrefLabel = $('<label class="excelformula-inline-label">').text(STR.cellreference).css('text-align', 'left');
-        var $sheetnameLabel = $('<label class="excelformula-inline-label">').text(STR.sheetname).css('text-align', 'left');
-        var $marksLabel = $('<label class="excelformula-inline-label">').text(STR.totalmarks).css('text-align', 'left');
-        var $summary = $('<div class="excelformula-cell-summary">');
-
-        var $removeCellBtn = $('<button type="button" class="btn btn-link text-danger excelformula-remove-cell">')
+        var $removeCellBtn = $('<button type="button" class="btn btn-link text-danger btn-sm excelformula-remove-cell">')
             .text(STR.removecell)
             .on('click', function(e) {
                 e.stopPropagation();
@@ -217,24 +200,70 @@ define(['jquery'], function($) {
                 render();
             });
 
-        $header.append(
-            $chevron,
-           // NEW
-            $('<div class="excelformula-cell-fields">').append(
-                $('<div class="excelformula-field-pair">').append($cellrefLabel, $cellrefInput),
-                $('<div class="excelformula-field-pair">').append($sheetnameLabel, $sheetnameInput),
-                $('<div class="excelformula-field-pair">').append($marksLabel, $totalmarksInput)
-            ),
-            $summary,
-            $removeCellBtn
-        );
+        var $header = $('<div class="excelformula-cell-header">')
+            .append($chevron, $title, $summary, $removeCellBtn)
+            .on('click', function(e) {
+                // Ignore clicks on the remove button itself.
+                if ($(e.target).closest('.excelformula-remove-cell').length) {
+                    return;
+                }
+                cell.expanded = !cell.expanded;
+                render();
+            });
 
         updateSummary($header, cell);
-
         $wrap.append($header);
 
-        // ---- Nested case rows (only rendered if expanded) ----
+        // ---- Accordion body: fields + nested case sub-accordions ----
         if (cell.expanded) {
+            var $body = $('<div class="excelformula-cell-body">');
+
+            // Cell reference field.
+            var $cellrefLabel = $('<label class="excelformula-field-label">').text(STR.cellreference);
+            var $cellrefInput = $('<input type="text" class="form-control excelformula-cellref-input">')
+                .attr('placeholder', STR.newcellplaceholder)
+                .val(cell.cellref)
+                .on('input', function() {
+                    cell.cellref = $(this).val();
+                    persist();
+                    updateSummary($header, cell);
+                });
+
+            // Worksheet field.
+            var $sheetnameLabel = $('<label class="excelformula-field-label">').text(STR.sheetname);
+            var $sheetnameInput = $('<input type="text" class="form-control excelformula-sheetname-input">')
+                .attr('placeholder', STR.sheetnameplaceholder)
+                .val(cell.sheetname)
+                .on('input', function() {
+                    cell.sheetname = $(this).val();
+                    persist();
+                });
+
+            // Total marks field.
+            var $totalmarksLabel = $('<label class="excelformula-field-label">').text(STR.totalmarks);
+            var $totalmarksInput = $('<input type="number" min="0" step="any" class="form-control excelformula-totalmarks-input">')
+                .val(cell.totalmarks)
+                .on('input', function() {
+                    cell.totalmarks = parseFloat($(this).val()) || 0;
+                    persist();
+                    updateSummary($header, cell);
+                });
+                 var $defaultfeedbackLabel = $('<label class="excelformula-field-label">').text(STR.defaultfeedback);
+            var $defaultfeedbackInput = $('<textarea class="form-control excelformula-defaultfeedback-input" rows="2">')
+                .val(cell.defaultfeedback)
+                .on('input', function() {
+                    cell.defaultfeedback = $(this).val();
+                    persist();
+                });
+                
+            $body.append(
+                $('<div class="excelformula-field-row">').append($cellrefLabel, $cellrefInput),
+                $('<div class="excelformula-field-row">').append($sheetnameLabel, $sheetnameInput),
+                $('<div class="excelformula-field-row">').append($totalmarksLabel, $totalmarksInput),
+                $('<div class="excelformula-field-row">').append($defaultfeedbackLabel, $defaultfeedbackInput)
+            );
+
+            // Nested answer-case sub-accordions.
             var $caseList = $('<div class="excelformula-case-list">');
 
             cell.cases.forEach(function(answercase, caseIndex) {
@@ -249,30 +278,24 @@ define(['jquery'], function($) {
                         marks: 0,
                         formulas: '',
                         feedback: '',
-                        expanded: true
+                        expanded: false
                     });
                     persist();
                     render();
                 });
 
-           var $addCellBtn = $('<button type="button" class="btn btn-secondary btn-sm excelformula-add-cell">')
-    .text(STR.addcell)
-    .on('click', function() {
-       state.push({ cellref: '', sheetname: '', totalmarks: 0, expanded: true, cases: [] });
-        persist();
-        render();
-    });
+          
 
-$caseList.append(
-    $('<div class="excelformula-add-case-wrap" style="display:flex; gap:0.5rem;">')
-        .append($addCaseBtn, $addCellBtn)
-);
-            $wrap.append($caseList);
+            $caseList.append(
+                $('<div class="excelformula-add-case-wrap">').append($addCaseBtn)
+            );
+
+            $body.append($caseList);
+            $wrap.append($body);
         }
 
         return $wrap;
     }
-
     // ----------------------------------------------------------
     // updateSummary($header, cell)
     //   Refreshes the "N answer cases | N marks allocated" text
@@ -284,43 +307,26 @@ $caseList.append(
         $header.find('.excelformula-cell-summary').text(text);
     }
 
-    // ----------------------------------------------------------
+   // ----------------------------------------------------------
     // renderCase(cell, answercase, cellIndex, caseIndex)
-    //   Builds one nested case row: a header (Answer N + credit
-    //   type dropdown + chevron) and, if expanded, the marks,
+    //   Builds one "Answer Case N" nested accordion row inside a
+    //   cell group. The header shows the case number and is
+    //   clickable to expand/collapse. The body — shown only when
+    //   expanded — contains the credittype, marks, accepted
     //   formulas, and feedback fields.
     // ----------------------------------------------------------
     function renderCase(cell, answercase, cellIndex, caseIndex) {
         var $wrap = $('<div class="excelformula-case-row">');
 
-        var $header = $('<div class="excelformula-case-header">');
-
+        // ---- Case header: "Answer Case N" ----
         var $chevron = $('<span class="excelformula-chevron">')
-            .html(answercase.expanded ? '<i class="fa fa-chevron-down fa-fw"></i>' : '<i class="fa fa-chevron-right fa-fw"></i>')
-            .on('click', function() {
-                answercase.expanded = !answercase.expanded;
-                render();
-            });
+            .html(answercase.expanded
+                ? '<i class="fa fa-chevron-down fa-fw"></i>'
+                : '<i class="fa fa-chevron-right fa-fw"></i>'
+            );
 
-        var $label = $('<span class="excelformula-case-label">')
-            .text(STR.answernumber + ' ' + (caseIndex + 1));
-
-        var $select = $('<select class="form-control excelformula-credittype-select">');
-        [
-            ['full', STR.credittype_full],
-            ['partial', STR.credittype_partial],
-            ['hardcoded', STR.credittype_hardcoded]
-        ].forEach(function(opt) {
-            $select.append($('<option>').val(opt[0]).text(opt[1]));
-        });
-        $select.val(answercase.credittype);
-        applySelectColour($select);
-
-        $select.on('change', function() {
-            answercase.credittype = $(this).val();
-            applySelectColour($select);
-            persist();
-        });
+        var $caseTitle = $('<span class="excelformula-case-title">')
+            .text('Answer Case ' + (caseIndex + 1));
 
         var $removeCaseBtn = $('<button type="button" class="btn btn-link text-danger btn-sm excelformula-remove-case">')
             .text(STR.removecase)
@@ -330,18 +336,44 @@ $caseList.append(
                 persist();
                 render();
             });
-        
-    var $cellTitle = $('<h4 class="excelformula-cell-title" style="margin:0 0.5rem 0 0.25rem; font-size:1rem; font-weight:600;">')
-    .text(cell.cellref ? (STR.cellreference + ': ' + cell.cellref) : STR.newcellplaceholder);
 
-        $header.append($cellTitle, $chevron, $label);
-        $wrap.append($header);
+        var $caseHeader = $('<div class="excelformula-case-header">')
+            .append($chevron, $caseTitle, $removeCaseBtn)
+            .on('click', function(e) {
+                // Ignore clicks on the remove button itself.
+                if ($(e.target).closest('.excelformula-remove-case').length) {
+                    return;
+                }
+                answercase.expanded = !answercase.expanded;
+                render();
+            });
 
+        $wrap.append($caseHeader);
+
+        // ---- Case body (visible when expanded) ----
         if (answercase.expanded) {
-            
-            var $body = $('<div class="excelformula-case-body" style="text-align:left;">');
+            var $body = $('<div class="excelformula-case-body">');
 
-            var $marksLabel = $('<label style="text-align:left;">').text(STR.marks);
+            // Credit type.
+            var $credittypeLabel = $('<label class="excelformula-field-label">').text(STR.credittype);
+            var $select = $('<select class="form-control excelformula-credittype-select">');
+            [
+                ['full',       STR.credittype_full],
+                ['partial',    STR.credittype_partial],
+                ['hardcoded',  STR.credittype_hardcoded]
+            ].forEach(function(opt) {
+                $select.append($('<option>').val(opt[0]).text(opt[1]));
+            });
+            $select.val(answercase.credittype);
+            applySelectColour($select);
+            $select.on('change', function() {
+                answercase.credittype = $(this).val();
+                applySelectColour($select);
+                persist();
+            });
+
+            // Marks.
+            var $marksLabel = $('<label class="excelformula-field-label">').text(STR.marks);
             var $marksInput = $('<input type="number" min="0" step="any" class="form-control">')
                 .val(answercase.marks)
                 .on('input', function() {
@@ -349,9 +381,8 @@ $caseList.append(
                     persist();
                 });
 
-            $body.append($select, $removeCaseBtn, $marksLabel, $marksInput);
-
-            var $formulasLabel = $('<label style="text-align:left;">').text(STR.formulas);
+            // Accepted formulas.
+            var $formulasLabel = $('<label class="excelformula-field-label">').text(STR.formulas);
             var $formulasInput = $('<input type="text" class="form-control">')
                 .attr('placeholder', STR.formulasplaceholder)
                 .val(answercase.formulas)
@@ -360,33 +391,20 @@ $caseList.append(
                     persist();
                 });
 
-            var $feedbackLabel = $('<label style="text-align:left;">').text(STR.feedback);
+            // Feedback.
+            var $feedbackLabel = $('<label class="excelformula-field-label">').text(STR.feedback);
             var $feedbackInput = $('<textarea class="form-control" rows="3">')
                 .val(answercase.feedback)
                 .on('input', function() {
                     answercase.feedback = $(this).val();
                     persist();
                 });
-          
-            // var $caseTitle = $('<h5 style="margin:0 0 0.75rem 0; font-size:0.9rem; font-weight:600; color:#495057;">')
-            // .text(STR.answernumber + ' ' + (caseIndex + 1));
-            // $body.prepend($caseTitle);
+
             $body.append(
-                $('<div class="excelformula-field-block" style="display:block; margin-bottom:0.75rem; padding-left:2em;">')
-    .append(
-        $marksLabel.css({ display: 'block', marginBottom: '0.2rem' }),
-        $marksInput
-    ).append($marksLabel, $marksInput),
-               $('<div class="excelformula-field-block" style="display:block; margin-bottom:0.75rem; padding-left:2em;">')
-    .append(
-        $formulasLabel.css({ display: 'block', marginBottom: '0.2rem' }),
-        $formulasInput
-    ).append($formulasLabel, $formulasInput),
-                $('<div class="excelformula-field-block" style="display:block; margin-bottom:0.75rem; padding-left:2em;">')
-    .append(
-        $feedbackLabel.css({ display: 'block', marginBottom: '0.2rem' }),
-        $feedbackInput
-    ).append($feedbackLabel, $feedbackInput)
+                $('<div class="excelformula-field-row">').append($credittypeLabel, $select),
+                $('<div class="excelformula-field-row">').append($marksLabel, $marksInput),
+                $('<div class="excelformula-field-row">').append($formulasLabel, $formulasInput),
+                $('<div class="excelformula-field-row">').append($feedbackLabel, $feedbackInput)
             );
 
             $wrap.append($body);
@@ -414,7 +432,18 @@ $caseList.append(
         if (!$container.length || !$hiddenfield.length) {
             return;
         }
-
+        // Moodle renders static elements in a col-md-3 (label) + col-md-9
+        // (content) grid. Hiding the empty label column and widening the
+        // content column to col-md-12 aligns the accordion flush-left with
+        // the section headers above it and fills the full form width.
+        var $fitem = $container.closest('.fitem');
+        if ($fitem.length) {
+            $fitem.children('.col-md-3').hide();
+            $fitem.children('.col-md-9')
+                .removeClass('col-md-9')
+                .addClass('col-md-12')
+                .css('display', 'block');
+        }
         // Load existing data (placed there server-side by
         // data_preprocessing() in edit_excelformula_form.php).
         var initial = [];
@@ -441,13 +470,14 @@ $caseList.append(
                 cellref: '',
                 sheetname: '',
                 totalmarks: 0,
+                defaultfeedback: '',
                 expanded: true,
                 cases: [{
                     credittype: 'full',
                     marks: 0,
                     formulas: '',
                     feedback: '',
-                    expanded: true
+                    expanded: false
                 }]
             });
         }

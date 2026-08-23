@@ -1,5 +1,9 @@
 # Compiled AMD JS (built by `grunt amd` from amd/src/*.js)
 amd/build/
+*.min.js
+*.min.js.map
+.DS_Store
+Thumbs.db
 
 # Node/Grunt tooling artifacts, if you have a package.json for grunt
 node_modules/

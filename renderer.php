@@ -59,20 +59,6 @@ class qtype_excelformula_renderer extends qtype_renderer {
         // --------------------------------------------------------
         $output .= $this->render_cell_answers($qa, $question, $options);
 
-        // --------------------------------------------------------
-        // 3. Once the whole attempt is graded, show the correct
-        //    formula summary if it was wrong or partially correct.
-        // --------------------------------------------------------
-        if ($options->feedback && $qa->get_state()->is_graded()
-                && ($qa->get_state() == question_state::$gradedwrong
-                    || $qa->get_state() == question_state::$gradedpartial)) {
-            $correct = $question->get_correct_response();
-            $output .= html_writer::tag('p',
-                get_string('correctansweris', 'qtype_excelformula', s($correct['answer'] ?? '')),
-                ['class' => 'qtype_excelformula_correctanswer']
-            );
-        }
-
         return $output;
     }
 
@@ -193,19 +179,45 @@ class qtype_excelformula_renderer extends qtype_renderer {
 
         $feedbackhtml = '';
         $stateclass   = '';
+        $alertclass   = '';
         if ($isgraded) {
             $result     = $question->grade_single_cell($ansid, $currentval);
             $stateclass = 'qtype_excelformula_state_' . $result['state'];
+            $alertmap = [
+              'gradedright'   => 'alert alert-success',
+              'gradedpartial' => 'alert alert-warning',
+              'gradedwrong'   => 'alert alert-danger',
+            ];
+            $alertclass = $alertmap[$result['state']] ?? '';
 
-            if ($options->feedback) {
-                $feedbackhtml .= html_writer::tag('p',
-                    get_string('markawarded', 'qtype_excelformula',
-                        (object) ['mark' => $result['mark'], 'maxmark' => $result['maxmark']]),
-                    ['class' => 'qtype_excelformula_cell_mark']
-                );
-                if (trim($result['feedback']) !== '') {
-                    $feedbackhtml .= html_writer::tag('p', s($result['feedback']),
-                        ['class' => 'qtype_excelformula_casefeedback']);
+            // Show this cell's mark/feedback whenever it has already been
+            // graded via qtype_excelformula_grade_cell (grade_cell.php),
+            // regardless of $options->feedback. That flag reflects the
+            // *whole-question* behaviour state, which only becomes true
+            // once the entire attempt is finished -- gating on it here
+            // caused this block to disappear on every full page reload
+            // during the attempt (e.g. visiting the quiz summary and
+            // returning), even though the mark/feedback had already been
+            // legitimately awarded and persisted as a qt var.
+            $feedbackhtml .= html_writer::tag('p',
+                get_string('markawarded', 'qtype_excelformula',
+                    (object) ['mark' => $result['mark'], 'maxmark' => $result['maxmark']]),
+                ['class' => 'qtype_excelformula_cell_mark']
+            );
+                       if (trim($result['feedback']) !== '') {
+                $feedbackhtml .= html_writer::tag('p', s($result['feedback']),
+                    ['class' => 'qtype_excelformula_casefeedback']);
+            }
+
+            // Show this cell's own correct formula (first "full credit"
+            // case) whenever it wasn't fully correct, instead of one
+            // formula summary for the whole question.
+            if ($result['state'] !== 'gradedright') {
+                $correctformula = $question->get_correct_response()['answer_' . $ansid] ?? '';
+                if ($correctformula !== '') {
+                    $feedbackhtml .= html_writer::tag('p',
+                        get_string('correctansweris', 'qtype_excelformula', s($correctformula)),
+                        ['class' => 'qtype_excelformula_correctanswer']);
                 }
             }
         }
@@ -524,10 +536,8 @@ private function num_to_col_letter(int $num): string {
      * Show the correct answer on the review screen when the teacher
      * has enabled "Show correct answer".
      */
-    public function correct_response(question_attempt $qa) {
-    $question = $qa->get_question();
-    $correct  = $question->get_correct_response();
-    return get_string('correctansweris', 'qtype_excelformula', s($correct['answer'] ?? ''));
-}
+        public function correct_response(question_attempt $qa) {
+        return '';
+    }
 
 } // End of class qtype_excelformula_renderer

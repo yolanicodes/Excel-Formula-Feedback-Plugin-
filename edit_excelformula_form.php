@@ -161,6 +161,7 @@ class qtype_excelformula_edit_form extends question_edit_form {
             'removecase'           => get_string('removecase', 'qtype_excelformula'),
             'cellreference'        => get_string('case_cell', 'qtype_excelformula'),
             'totalmarks'           => get_string('cell_totalmarks', 'qtype_excelformula'),
+            'defaultfeedback'      => get_string('cell_defaultfeedback', 'qtype_excelformula'),
             'cellsummary'          => get_string('cellsummary', 'qtype_excelformula'),
             'answernumber'         => get_string('answernumber', 'qtype_excelformula'),
             'credittype'           => get_string('case_credittype', 'qtype_excelformula'),
@@ -250,6 +251,7 @@ class qtype_excelformula_edit_form extends question_edit_form {
                         'sheetname'  => $answer->sheetname ?? '',
                         'totalmarks' => isset($answer->markallocation)
                             ? (float) $answer->markallocation : 0,
+                        'defaultfeedback' => $answer->defaultfeedback ?? '',
                         'cases'      => [],
                     ];
 

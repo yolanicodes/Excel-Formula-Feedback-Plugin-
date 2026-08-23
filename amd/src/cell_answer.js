@@ -56,6 +56,11 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
 
     // Populated from PHP-supplied language strings in init().
     var STR = {};
+    var ALERT_CLASS = {
+        gradedright: 'alert alert-success',
+        gradedpartial: 'alert alert-warning',
+        gradedwrong: 'alert alert-danger'
+    };
 
     /**
      * Look up the grid's sheet panel id for a given worksheet name.
@@ -120,6 +125,7 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
     function applyGradedState($cell, result) {
         var $input = $cell.find('.qtype_excelformula_cell_input');
         var $feedback = $cell.find('.qtype_excelformula_cell_feedback');
+        
 
         $input.prop('readonly', true);
         $cell.attr('data-graded', '1').attr('data-active', '0');
@@ -128,6 +134,7 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
         $cell.removeClass('qtype_excelformula_state_gradedright ' +
             'qtype_excelformula_state_gradedpartial qtype_excelformula_state_gradedwrong');
         $cell.addClass('qtype_excelformula_state_' + result.state);
+        $cell.addClass(ALERT_CLASS[result.state] || '');
 
         var markline = STR.markawarded
             .replace('{mark}', result.mark)

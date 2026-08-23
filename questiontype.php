@@ -156,6 +156,7 @@ class qtype_excelformula extends question_type {
             $answer->markallocation = isset($cell['totalmarks']) ? floatval($cell['totalmarks']) : 0;
             $answer->rules          = json_encode([]);
             $answer->feedback       = '';
+            $answer->defaultfeedback = $cell['defaultfeedback'] ?? '';
 
             $answer->ansid = $DB->insert_record('qtype_excelformula_answers', $answer);
 

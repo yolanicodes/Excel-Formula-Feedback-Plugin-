@@ -117,38 +117,38 @@ class qtype_excelformula_question extends question_graded_automatically {
     }
 
 
-    // --------------------------------------------------------
-    // What answer should be shown when the student clicks
-    // "Show correct answer" after submitting the quiz.
-    // --------------------------------------------------------
-   public function get_correct_response() 
-   {
-    if (empty($this->answers)) {
-        return ['answer' => ''];
+       // Returns one correct formula per graded cell, keyed to match
+    // get_expected_data()/renderer.php's 'answer_' . ansid field names,
+    // so each cell can show its own correct answer instead of one
+    // formula for the whole question.
+    public function get_correct_response() {
+        $correct = [];
+        foreach ($this->answers as $answer) {
+            $correct['answer_' . $answer->ansid] = $this->get_correct_formula_for_answer($answer);
+        }
+        return $correct;
     }
 
-    foreach ($this->answers as $answer) {
+    // Picks the accepted formula to show as "the correct answer" for
+    // one graded cell: the first formula on the first "full credit"
+    // case, falling back to the first case of any type if no full
+    // credit case exists.
+    private function get_correct_formula_for_answer($answer): string {
         foreach ($answer->answercases as $case) {
             if (($case->casetype ?? 'full') === 'full') {
-                $formulas = array_map('trim', explode(',', $case->answertext));
+                $formulas = $this->split_accepted_formulas($case->answertext);
                 if (!empty($formulas[0])) {
-                    return ['answer' => $formulas[0]];
+                    return $formulas[0];
                 }
             }
         }
-    }
-
-    foreach ($this->answers as $answer) {
         if (!empty($answer->answercases)) {
             $case     = reset($answer->answercases);
-            $formulas = array_map('trim', explode(',', $case->answertext));
-            return ['answer' => $formulas[0] ?? ''];
+            $formulas = $this->split_accepted_formulas($case->answertext);
+            return $formulas[0] ?? '';
         }
+        return '';
     }
-
-    return ['answer' => ''];
-    }
-
 
     // --------------------------------------------------------
     // THE MAIN GRADING FUNCTION
@@ -236,7 +236,7 @@ private function best_matching_case(array $cases, string $studentformula, ?float
     $best = null;
 
     foreach ($cases as $case) {
-        $accepted   = array_map('trim', explode(',', $case->answertext));
+        $accepted   = $this->split_accepted_formulas($case->answertext);
         $credittype = $case->casetype ?? 'full';
 
         foreach ($accepted as $acceptedtext) {
@@ -244,12 +244,10 @@ private function best_matching_case(array $cases, string $studentformula, ?float
                 continue;
             }
 
-            if ($credittype === 'hardcoded') {
+           if ($credittype === 'hardcoded') {
                 $ismatch = $this->values_match($studentresult, $acceptedtext);
            } else {
-                $ismatch = $this->formulas_match($studentformula, $acceptedtext)
-                    || $this->values_match($studentresult, $acceptedtext)
-                    || $this->accepted_formula_value_matches($acceptedtext, $studentresult, $cells);
+                $ismatch = $this->formulas_match($studentformula, $acceptedtext);
             }
 
             if ($ismatch && ($best === null || $case->casemark > $best->casemark)) {
@@ -279,7 +277,9 @@ private function compute_cell_result($answer, string $formula, array $sheetcells
     $best    = $this->best_matching_case($answer->answercases, $formula, $result, $sheetcells);
 
     $mark     = $best !== null ? (float) $best->casemark : 0.0;
-    $feedback = $best !== null ? (string) ($best->casefeedback ?? '') : '';
+    $feedback = $best !== null 
+    ? (string) ($best->casefeedback ?? '') 
+    : (string) ($answer->defaultfeedback ?? '');
 
     if ($mark >= $maxmark && $maxmark > 0) {
         $state = question_state::$gradedright;
@@ -405,15 +405,111 @@ private function get_cells_by_sheet(): array {
 //   numeric comparison within the cell's tolerance.
 // ----------------------------------------------------------
 private function formulas_match(string $a, string $b): bool {
-    $normalise = function(string $formula): string {
+        if ($this->normalise_formula($a) === $this->normalise_formula($b)) {
+            return true;
+        }
+        return $this->canonicalise_formula($a) === $this->canonicalise_formula($b);
+    }
+
+/**
+     * Strips '=', case, and whitespace only -- the fast-path exact
+     * comparison formulas_match() tries first.
+     */
+    private function normalise_formula(string $formula): string {
         $formula = trim($formula);
         if ($formula !== '' && $formula[0] === '=') {
             $formula = substr($formula, 1);
         }
         return strtolower(preg_replace('/\s+/', '', $formula));
-    };
-    return $normalise($a) === $normalise($b);
-}
+    }
+
+    /**
+     * Builds a canonical form of a formula so operand order stops
+     * mattering for purely commutative +/* groupings (e.g. "D9*$B$6"
+     * and "$B$6*D9" canonicalise identically), while '-' and '/'
+     * remain order-significant (not commutative) and '$' absolute/
+     * relative markers remain untouched -- so different $ referencing
+     * styles still count as genuinely different formulas, letting a
+     * teacher grade them as separate full/partial cases.
+     */
+    private function canonicalise_formula(string $formula): string {
+        return $this->canonicalise_additive($this->normalise_formula($formula));
+    }
+
+    private function canonicalise_additive(string $expr): string {
+        $expr = trim($expr);
+
+        if (strlen($expr) > 1 && $expr[0] === '(' && $expr[strlen($expr) - 1] === ')'
+                && $this->matching_close_paren($expr, 0) === strlen($expr) - 1) {
+            return '(' . $this->canonicalise_additive(substr($expr, 1, strlen($expr) - 2)) . ')';
+        }
+
+        $tokens = $this->split_by_operators($expr, ['+', '-']);
+        if (count($tokens) === 1) {
+            return $this->canonicalise_multiplicative($expr);
+        }
+
+        $pureadd = true;
+        foreach ($tokens as $i => $t) {
+            if ($i > 0 && $t['op'] !== '+') {
+                $pureadd = false;
+                break;
+            }
+        }
+
+        if ($pureadd) {
+            $parts = array_map(function($t) {
+                return $this->canonicalise_multiplicative($t['value']);
+            }, $tokens);
+            sort($parts);
+            return implode('+', $parts);
+        }
+
+        $rebuilt = $this->canonicalise_multiplicative($tokens[0]['value']);
+        for ($i = 1; $i < count($tokens); $i++) {
+            $rebuilt .= $tokens[$i]['op'] . $this->canonicalise_multiplicative($tokens[$i]['value']);
+        }
+        return $rebuilt;
+    }
+
+    private function canonicalise_multiplicative(string $expr): string {
+        $expr = trim($expr);
+
+        $tokens = $this->split_by_operators($expr, ['*', '/']);
+        if (count($tokens) > 1) {
+            $puremul = true;
+            foreach ($tokens as $i => $t) {
+                if ($i > 0 && $t['op'] !== '*') {
+                    $puremul = false;
+                    break;
+                }
+            }
+
+            if ($puremul) {
+                $parts = array_map(function($t) {
+                    return $this->canonicalise_additive($t['value']);
+                }, $tokens);
+                sort($parts);
+                return implode('*', $parts);
+            }
+
+            $rebuilt = $this->canonicalise_additive($tokens[0]['value']);
+            for ($i = 1; $i < count($tokens); $i++) {
+                $rebuilt .= $tokens[$i]['op'] . $this->canonicalise_additive($tokens[$i]['value']);
+            }
+            return $rebuilt;
+        }
+
+        // Function calls: arguments are positional, not commutative --
+        // canonicalise each argument's own contents but keep their order.
+        if (preg_match('/^([a-z_][a-z0-9_]*)\((.*)\)$/s', $expr, $m)) {
+            $args = $this->split_function_args($m[2]);
+            $canonargs = array_map([$this, 'canonicalise_additive'], $args);
+            return $m[1] . '(' . implode(',', $canonargs) . ')';
+        }
+
+        return $expr;
+    }
 /**
      * For 'full'/'partial' cases where the accepted text is a formula
      * (not a bare number), evaluate it against the same cell data and
@@ -454,12 +550,21 @@ private function formulas_match(string $a, string $b): bool {
         return $matches;
     }
 private function values_match(?float $studentresult, string $acceptedtext): bool {
-    if ($studentresult === null || !is_numeric(trim($acceptedtext))) {
+    if ($studentresult === null) {
         return false;
     }
+
+    $acceptedtext = trim($acceptedtext);
+    if ($acceptedtext !== '' && $acceptedtext[0] === '=') {
+        $acceptedtext = substr($acceptedtext, 1);
+    }
+
+    if (!is_numeric($acceptedtext)) {
+        return false;
+    }
+
     return abs($studentresult - floatval($acceptedtext)) <= self::VALUE_COMPARISON_EPSILON;
 }
-
     /**
      * Convert a column letter to a number.
      * A=1, B=2, Z=26, AA=27, AB=28, etc.
@@ -1074,6 +1179,44 @@ private function values_match(?float $studentresult, string $acceptedtext): bool
             }
         }
         return -1; // Not found
+    }
+
+    /**
+     * Split a case's answertext into individual accepted formulas,
+     * splitting only on commas OUTSIDE parentheses -- a single accepted
+     * formula (e.g. "=ROUND(SUM(B2:B4),2)") can itself contain commas
+     * as function-argument separators, which a plain explode(',', ...)
+     * would incorrectly slice into unmatched fragments.
+     *
+     * @param string $answertext Raw stored value of casetext.
+     * @return string[] Trimmed, individual accepted formulas.
+     */
+    private function split_accepted_formulas(string $answertext): array {
+        $formulas = [];
+        $depth    = 0;
+        $current  = '';
+
+        for ($i = 0; $i < strlen($answertext); $i++) {
+            $ch = $answertext[$i];
+            if ($ch === '(') {
+                $depth++;
+                $current .= $ch;
+            } elseif ($ch === ')') {
+                $depth--;
+                $current .= $ch;
+            } elseif ($ch === ',' && $depth === 0) {
+                $formulas[] = trim($current);
+                $current    = '';
+            } else {
+                $current .= $ch;
+            }
+        }
+
+        if (trim($current) !== '') {
+            $formulas[] = trim($current);
+        }
+
+        return $formulas;
     }
 
 } // End of class qtype_excelformula_question

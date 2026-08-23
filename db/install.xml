@@ -27,7 +27,7 @@
 
   You do NOT need to create the tables yourself — Moodle handles that.
 -->
-<XMLDB PATH="question/type/excelformula/db" VERSION="20260619" COMMENT="XMLDB file for qtype_excelformula">
+<XMLDB PATH="question/type/excelformula/db" VERSION="20260823" COMMENT="XMLDB file for qtype_excelformula">
   <TABLES>
 
     <TABLE NAME="qtype_excelformula_options" COMMENT="Per-question settings: link to the parsed cell-data spreadsheet">
@@ -104,6 +104,8 @@
 
         <FIELD NAME="feedback"       TYPE="text" NOTNULL="false"
                COMMENT="Feedback shown for this cell, regardless of which case matched"/>
+
+               <FIELD NAME="defaultfeedback" TYPE="text" NOTNULL="false" COMMENT="Feedback shown for this cell when no case matches"/>
 
       </FIELDS>
       <KEYS>
