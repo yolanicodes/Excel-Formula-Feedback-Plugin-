@@ -27,7 +27,7 @@
 
   You do NOT need to create the tables yourself — Moodle handles that.
 -->
-<XMLDB PATH="question/type/excelformula/db" VERSION="20260823" COMMENT="XMLDB file for qtype_excelformula">
+<XMLDB PATH="question/type/excelformula/db" VERSION="20260830" COMMENT="XMLDB file for qtype_excelformula">
   <TABLES>
 
     <TABLE NAME="qtype_excelformula_options" COMMENT="Per-question settings: link to the parsed cell-data spreadsheet">
@@ -90,12 +90,6 @@
         <FIELD NAME="sheetname"      TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT=""
                COMMENT="Worksheet name this cellref belongs to, e.g. Sheet1"/>
 
-        <FIELD NAME="formulaweight"  TYPE="number" LENGTH="20" DECIMALS="10" NOTNULL="true" DEFAULT="0"
-               COMMENT="Weight given to the structure/formula matching for this cell"/>
-
-        <FIELD NAME="answerweight"   TYPE="number" LENGTH="20" DECIMALS="10" NOTNULL="true" DEFAULT="0"
-               COMMENT="Weight given to the resulting value matching for this cell"/>
-
         <FIELD NAME="markallocation" TYPE="number" LENGTH="20" DECIMALS="10" NOTNULL="true" DEFAULT="0"
                COMMENT="Marks allocated to this cell out of the question's total"/>
 
@@ -130,15 +124,11 @@
         <FIELD NAME="casetype"    TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="formula"
                COMMENT="How answertext should be interpreted, e.g. formula or value"/>
 
-        <FIELD NAME="caseweight"  TYPE="number" LENGTH="20" DECIMALS="10" NOTNULL="true" DEFAULT="0"
-               COMMENT="Relative weight of this case versus other cases for the same cell"/>
-
         <FIELD NAME="answertext"  TYPE="text" NOTNULL="true"
                COMMENT="The accepted formula or value for this case, e.g. =SUM(A1:A3)"/>
 
         <FIELD NAME="casefeedback" TYPE="text" NOTNULL="false"
                COMMENT="Feedback shown specifically when this case matches"/>
-
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="anscaseid"/>

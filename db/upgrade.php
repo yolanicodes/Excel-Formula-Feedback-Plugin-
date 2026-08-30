@@ -35,8 +35,6 @@ function xmldb_qtype_excelformula_upgrade($oldversion) {
             $table->add_field('ansid',          XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
             $table->add_field('questionid',     XMLDB_TYPE_INTEGER, '10',  null, XMLDB_NOTNULL, null, '0');
             $table->add_field('cellref',        XMLDB_TYPE_CHAR,    '20',  null, XMLDB_NOTNULL, null, '');
-            $table->add_field('formulaweight',  XMLDB_TYPE_NUMBER,  '20',  XMLDB_UNSIGNED, XMLDB_NOTNULL, null, '0');
-            $table->add_field('answerweight',   XMLDB_TYPE_NUMBER,  '20',  XMLDB_UNSIGNED, XMLDB_NOTNULL, null, '0');
             $table->add_field('markallocation', XMLDB_TYPE_NUMBER,  '20',  XMLDB_UNSIGNED, XMLDB_NOTNULL, null, '0');
             $table->add_field('rules',          XMLDB_TYPE_TEXT,    null,  null, null);
             $table->add_field('feedback',       XMLDB_TYPE_TEXT,    null,  null, null);
@@ -52,7 +50,6 @@ function xmldb_qtype_excelformula_upgrade($oldversion) {
             $table->add_field('ansid',        XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
             $table->add_field('casemark',     XMLDB_TYPE_NUMBER,  '20', XMLDB_UNSIGNED, XMLDB_NOTNULL, null, '0');
             $table->add_field('casetype',     XMLDB_TYPE_CHAR,    '50', null, XMLDB_NOTNULL, null, 'formula');
-            $table->add_field('caseweight',   XMLDB_TYPE_NUMBER,  '20', XMLDB_UNSIGNED, XMLDB_NOTNULL, null, '0');
             $table->add_field('answertext',   XMLDB_TYPE_TEXT,    null, null, XMLDB_NOTNULL);
             $table->add_field('casefeedback', XMLDB_TYPE_TEXT,    null, null, null);
             $table->add_key('primary', XMLDB_KEY_PRIMARY, ['anscaseid']);
@@ -89,5 +86,31 @@ function xmldb_qtype_excelformula_upgrade($oldversion) {
 
         upgrade_plugin_savepoint(true, 2026082300, 'qtype', 'excelformula');
     }
+
+       if ($oldversion < 2026083000) {
+
+        // Define field formulaweight to be dropped from qtype_excelformula_answers.
+        $table = new xmldb_table('qtype_excelformula_answers');
+        $field = new xmldb_field('formulaweight');
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Define field answerweight to be dropped from qtype_excelformula_answers.
+        $field = new xmldb_field('answerweight');
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        // Define field caseweight to be dropped from qtype_excelformula_anscase.
+        $table = new xmldb_table('qtype_excelformula_anscase');
+        $field = new xmldb_field('caseweight');
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->drop_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026083000, 'qtype', 'excelformula');
+    }
+
     return true;
 }

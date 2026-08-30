@@ -151,8 +151,6 @@ class qtype_excelformula extends question_type {
             $answer->questionid     = $question->id;
             $answer->cellref        = $cell['cellref'] ?? '';
             $answer->sheetname      = $cell['sheetname'] ?? '';
-            $answer->formulaweight  = 0;
-            $answer->answerweight   = 0;
             $answer->markallocation = isset($cell['totalmarks']) ? floatval($cell['totalmarks']) : 0;
             $answer->rules          = json_encode([]);
             $answer->feedback       = '';
@@ -165,7 +163,6 @@ class qtype_excelformula extends question_type {
                 $anscase->ansid        = $answer->ansid;
                 $anscase->casemark     = isset($case['marks']) ? floatval($case['marks']) : 0;
                 $anscase->casetype     = $case['credittype'] ?? 'full';
-                $anscase->caseweight   = 0;
                 $anscase->answertext   = $case['formulas'] ?? '';
                 $anscase->casefeedback = $case['feedback'] ?? '';
 
