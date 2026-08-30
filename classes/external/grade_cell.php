@@ -126,6 +126,9 @@ class grade_cell extends external_api {
                 'maxmark'  => 0,
                 'feedback' => '',
                 'state'    => '',
+                'locked'       => false,
+                'attemptsused' => 0,
+                'attemptsmax'  => \qtype_excelformula_question::MAX_ATTEMPTS_PER_CELL,
             ];
         }
 
@@ -134,39 +137,59 @@ class grade_cell extends external_api {
         // rule, not just a UI lock. Relies on qa->get_response_summary()
         // / question->get_graded_ansids($qa) (File 3) to know which
         // cells already have a recorded, graded step.
-        $gradedansids = $question->get_graded_ansids($qa);
+                $gradedansids = $question->get_graded_ansids($qa);
         $nextansid    = $question->get_next_ungraded_ansid($qa);
 
         if ($nextansid !== $params['ansid'] && !in_array($params['ansid'], $gradedansids, true)) {
             return [
-                'success'  => false,
-                'error'    => get_string('detecterror', 'qtype_excelformula'),
-                'mark'     => 0,
-                'maxmark'  => 0,
-                'feedback' => '',
-                'state'    => '',
+                'success'      => false,
+                'error'        => get_string('detecterror', 'qtype_excelformula'),
+                'mark'         => 0,
+                'maxmark'      => 0,
+                'feedback'     => '',
+                'state'        => '',
+                'locked'       => false,
+                'attemptsused' => 0,
+                'attemptsmax'  => \qtype_excelformula_question::MAX_ATTEMPTS_PER_CELL,
             ];
         }
 
         // Grading itself stays in the model layer (question.php, File 3).
         $result = $question->grade_single_cell($params['ansid'], $params['formula']);
 
+        // Only the best mark across all attempts on this cell is ever kept.
+        $previousbest = $question->get_cell_best_mark($qa, $params['ansid']);
+        $bestmark     = max($previousbest, (float) $result['mark']);
+        $attemptsused = $question->get_cell_attempt_count($qa, $params['ansid']) + 1;
+        $fullmarks    = $result['maxmark'] > 0 && $bestmark >= $result['maxmark'];
+        $locked       = $fullmarks || $attemptsused >= \qtype_excelformula_question::MAX_ATTEMPTS_PER_CELL;
+
         // Record this as a genuine step on the question_attempt so the
         // question engine's own state (not a side table) is authoritative
-        // for review, regrade, and attempt history.
+        // for review, regrade, and attempt history. answer_ is written
+        // only once the cell locks -- get_graded_ansids()/
+        // get_next_ungraded_ansid() treat a non-empty answer_ as "done",
+        // so writing it on every retry would advance the sequence early.
         $submitteddata = [
-            'answer_' . $params['ansid'] => $params['formula'],
+            'attempts_' . $params['ansid'] => $attemptsused,
+            'bestmark_' . $params['ansid'] => $bestmark,
         ];
+        if ($locked) {
+            $submitteddata['answer_' . $params['ansid']] = $params['formula'];
+        }
         $quba->process_action($params['slot'], $submitteddata);
         question_engine::save_questions_usage_by_activity($quba);
 
         return [
-            'success'  => true,
-            'error'    => '',
-            'mark'     => (float) $result['mark'],
-            'maxmark'  => (float) $result['maxmark'],
-            'feedback' => (string) ($result['feedback'] ?? ''),
-            'state'    => (string) $result['state'],
+            'success'      => true,
+            'error'        => '',
+            'mark'         => $locked ? $bestmark : (float) $result['mark'],
+            'maxmark'      => (float) $result['maxmark'],
+            'feedback'     => (string) ($result['feedback'] ?? ''),
+            'state'        => (string) $result['state'],
+            'locked'       => $locked,
+            'attemptsused' => $attemptsused,
+            'attemptsmax'  => \qtype_excelformula_question::MAX_ATTEMPTS_PER_CELL,
         ];
     }
 
@@ -183,6 +206,9 @@ class grade_cell extends external_api {
             'maxmark'  => new external_value(PARAM_FLOAT, 'Marks available for this cell'),
             'feedback' => new external_value(PARAM_RAW, 'Case-specific feedback for this cell, if any'),
             'state'    => new external_value(PARAM_RAW, 'question_state name this cell response resolved to'),
+       'locked'       => new external_value(PARAM_BOOL, 'Whether this cell is now locked (full marks or attempts exhausted)'),
+            'attemptsused' => new external_value(PARAM_INT, 'Number of attempts used so far on this cell'),
+            'attemptsmax'  => new external_value(PARAM_INT, 'Maximum attempts allowed per cell'),
         ]);
     }
 }

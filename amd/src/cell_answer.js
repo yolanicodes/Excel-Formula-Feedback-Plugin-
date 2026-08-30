@@ -143,8 +143,10 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
         var $text = $('<p class="qtype_excelformula_cell_mark">').text(markline);
         $feedback.empty().append($text);
 
-        if (result.feedback) {
+                if (result.feedback) {
             $feedback.append($('<p class="qtype_excelformula_casefeedback">').text(result.feedback));
+        } else if (result.state !== 'gradedright') {
+            $feedback.append($('<p class="qtype_excelformula_casefeedback qtype_excelformula_default_feedback">').text(STR.defaultfeedback));
         }
     }
 
@@ -169,6 +171,39 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
         $next.find('.qtype_excelformula_submit_cell').prop('disabled', false).show();
 
         highlightCell($next.data('sheetname'), $next.data('cellref'));
+    }
+
+       /**
+     * Show feedback for a non-locking attempt: cell stays active and
+     * editable, but the student sees their mark and remaining attempts
+     * before trying again.
+     *
+     * @param {jQuery} $cell  The .qtype_excelformula_cell_answer block.
+     * @param {Object} result Response from qtype_excelformula_grade_cell.
+     */
+    function applyRetryState($cell, result) {
+        var $input = $cell.find('.qtype_excelformula_cell_input');
+        var $feedback = $cell.find('.qtype_excelformula_cell_feedback');
+
+        $input.prop('disabled', false).val('').focus();
+        $cell.find('.qtype_excelformula_submit_cell').prop('disabled', false);
+
+        var markline = STR.markawarded
+            .replace('{mark}', result.mark)
+            .replace('{maxmark}', result.maxmark);
+
+        var $text = $('<p class="qtype_excelformula_cell_mark">').text(markline);
+        var remaining = result.attemptsmax - result.attemptsused;
+        var $attemptsline = $('<p class="qtype_excelformula_attempts_remaining">')
+            .text(STR.attemptsremaining.replace('{remaining}', remaining));
+
+                $feedback.empty().append($text, $attemptsline);
+
+        if (result.feedback) {
+            $feedback.append($('<p class="qtype_excelformula_casefeedback">').text(result.feedback));
+        } else {
+            $feedback.append($('<p class="qtype_excelformula_casefeedback qtype_excelformula_default_feedback">').text(STR.defaultfeedback));
+        }
     }
 
     /**
@@ -198,7 +233,7 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
                 ansid: parseInt($cell.data('ansid'), 10),
                 formula: formula
             }
-        }])[0].done(function(result) {
+                }])[0].done(function(result) {
             if (!result.success) {
                 $input.prop('disabled', false);
                 $cell.find('.qtype_excelformula_submit_cell').prop('disabled', false);
@@ -206,8 +241,12 @@ define(['jquery', 'core/ajax', 'core/notification'], function($, Ajax, Notificat
                 return;
             }
 
-            applyGradedState($cell, result);
-            activateNextCell($container);
+            if (result.locked) {
+                applyGradedState($cell, result);
+                activateNextCell($container);
+            } else {
+                applyRetryState($cell, result);
+            }
         }).fail(function(ex) {
             $input.prop('disabled', false);
             $cell.find('.qtype_excelformula_submit_cell').prop('disabled', false);

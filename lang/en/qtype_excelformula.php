@@ -118,5 +118,7 @@ $string['checkcell']             = 'Check';
 $string['checkingcell']          = 'Checking…';
 $string['markawarded']           = 'Mark: {$a->mark} / {$a->maxmark}';
 $string['markawardedtemplate']   = 'Mark: {mark} / {maxmark}';
+$string['attemptsremaining']     = '{remaining} attempt(s) remaining for this cell.';
+$string['defaultincorrectfeedback'] = 'Not quite right yet — check your formula and try again.';
 
 $string['cell_defaultfeedback'] = 'Default feedback';

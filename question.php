@@ -37,6 +37,7 @@ class qtype_excelformula_question extends question_graded_automatically {
     
 
     const VALUE_COMPARISON_EPSILON = 0.0001;//fixed epsilon used only to absorb floating-point rounding when comparing a student's result to an accepted value. The plugin does not track a per-cell tolerance, so this is not teacher-configurable.
+    const MAX_ATTEMPTS_PER_CELL = 3; // Maximum number of attempts allowed per graded cell before it is locked.
 
 
     // --------------------------------------------------------
@@ -51,6 +52,8 @@ class qtype_excelformula_question extends question_graded_automatically {
         $expected = [];
         foreach ($this->answers as $answer) {
             $expected['answer_' . $answer->ansid] = PARAM_RAW_TRIMMED;
+            $expected['attempts_' . $answer->ansid]  = PARAM_INT;
+            $expected['bestmark_' . $answer->ansid]  = PARAM_FLOAT;
         }
         return $expected;
     }
@@ -99,17 +102,60 @@ class qtype_excelformula_question extends question_graded_automatically {
         }
         return '';
     }
+/**
+ * Number of formula submissions already recorded for one graded cell,
+ * read from the attempt's own qt var state (written by grade_cell.php),
+ * so retry counting survives reloads and stays authoritative on the
+ * server, not just in cell_answer.js.
+ *
+ * @param question_attempt $qa
+ * @param int $ansid
+ * @return int
+ */
+public function get_cell_attempt_count(question_attempt $qa, int $ansid): int {
+    return (int) $qa->get_last_qt_var('attempts_' . $ansid, 0);
+}
 
+/**
+ * Highest mark achieved so far across a cell's attempts. Compared
+ * against a newly-computed mark by grade_cell.php so only the best
+ * of the (at most MAX_ATTEMPTS_PER_CELL) attempts is ever kept.
+ *
+ * @param question_attempt $qa
+ * @param int $ansid
+ * @return float
+ */
+public function get_cell_best_mark(question_attempt $qa, int $ansid): float {
+    return (float) $qa->get_last_qt_var('bestmark_' . $ansid, 0);
+}
 
     // --------------------------------------------------------
     // Has the student changed their answer since last time?
     // Used to avoid unnecessary database saves.
     // --------------------------------------------------------
-    public function is_same_response(array $prevresponse, array $newresponse) {
+       public function is_same_response(array $prevresponse, array $newresponse) {
         foreach ($this->answers as $answer) {
             $key = 'answer_' . $answer->ansid;
             if (!question_utils::arrays_same_at_key_missing_is_blank(
                     $prevresponse, $newresponse, $key)) {
+                return false;
+            }
+
+            // attempts_/bestmark_ change on every retry even while
+            // answer_ itself is withheld (grade_cell.php only writes
+            // answer_ once the cell locks). Without checking these too,
+            // the behaviour engine treats consecutive retries as "no
+            // change", drops the pending step, and the attempt count
+            // never actually persists.
+            $attemptskey = 'attempts_' . $answer->ansid;
+            if (!question_utils::arrays_same_at_key_missing_is_blank(
+                    $prevresponse, $newresponse, $attemptskey)) {
+                return false;
+            }
+
+            $bestmarkkey = 'bestmark_' . $answer->ansid;
+            if (!question_utils::arrays_same_at_key_missing_is_blank(
+                    $prevresponse, $newresponse, $bestmarkkey)) {
                 return false;
             }
         }
@@ -199,18 +245,23 @@ class qtype_excelformula_question extends question_graded_automatically {
     $totalmarks  = 0.0;
     $earnedmarks = 0.0;
 
-    foreach ($this->answers as $answer) {
-    $cellmarks   = (float) $answer->markallocation;
-    $totalmarks += $cellmarks;
+        foreach ($this->answers as $answer) {
+        $cellmarks   = (float) $answer->markallocation;
+        $totalmarks += $cellmarks;
 
-    $cellformula = trim($response['answer_' . $answer->ansid] ?? '');
-    $sheetcells  = $cellsbysheet[$answer->sheetname ?? ''] ?? [];
-
-    // Shared with grade_single_cell() so per-cell (mid-attempt, via
-    // grade_cell.php) and whole-question grading never disagree.
-    $result       = $this->compute_cell_result($answer, $cellformula, $sheetcells);
-    $earnedmarks += $result['mark'];
-}
+        // Prefer the running best mark recorded across attempts
+        // (bestmark_{ansid}, kept by grade_cell.php) so a strong early
+        // attempt isn't lost to a weaker final one. Falls back to a
+        // fresh compute only if no bestmark_ was ever recorded.
+        if (isset($response['bestmark_' . $answer->ansid]) && $response['bestmark_' . $answer->ansid] !== '') {
+            $earnedmarks += (float) $response['bestmark_' . $answer->ansid];
+        } else {
+            $cellformula = trim($response['answer_' . $answer->ansid] ?? '');
+            $sheetcells  = $cellsbysheet[$answer->sheetname ?? ''] ?? [];
+            $result       = $this->compute_cell_result($answer, $cellformula, $sheetcells);
+            $earnedmarks += $result['mark'];
+        }
+    }
 
     if ($totalmarks <= 0) {
         return [0, question_state::$gradedwrong];

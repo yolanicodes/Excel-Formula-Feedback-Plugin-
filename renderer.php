@@ -125,13 +125,15 @@ class qtype_excelformula_renderer extends qtype_renderer {
         // NOTE: 'checkingcell', 'markawarded' and 'checkcell' are new
         // language strings this feature needs; not yet added to
         // lang/en/qtype_excelformula.php pending that file's turn.
-        $PAGE->requires->js_call_amd('qtype_excelformula/cell_answer', 'init', [
+                $PAGE->requires->js_call_amd('qtype_excelformula/cell_answer', 'init', [
             $qubaid,
             $slot,
             [
-                'checking'    => get_string('checkingcell', 'qtype_excelformula'),
-                'markawarded' => get_string('markawardedtemplate', 'qtype_excelformula'),
-                'detecterror' => get_string('detecterror', 'qtype_excelformula'),
+                'checking'        => get_string('checkingcell', 'qtype_excelformula'),
+                'markawarded'     => get_string('markawardedtemplate', 'qtype_excelformula'),
+                'detecterror'     => get_string('detecterror', 'qtype_excelformula'),
+                'attemptsremaining' => get_string('attemptsremaining', 'qtype_excelformula'),
+                'defaultfeedback' => get_string('defaultincorrectfeedback', 'qtype_excelformula'),
             ],
         ]);
 
