@@ -1,196 +1,366 @@
 # qtype_excelformula — Moodle Excel Formula Question Type
-### Complete Developer & Installation Guide
+
+A Moodle question type where students answer by typing Excel formulas into
+specific cells of a spreadsheet shown in the quiz. Each graded cell is marked
+one at a time, with per-cell attempts, credit types and feedback.
 
 ---
 
-## What this plugin does
+## Contents
 
-This plugin adds a new question type to Moodle quizzes called **"Excel Formula"**.
-
-- The **teacher** defines a set of spreadsheet cell values (e.g. A1=10, A2=20) and a correct formula.
-- The **student** types an Excel-style formula in the quiz (e.g. `=SUM(A1:A3)`).
-- The plugin **evaluates** the student's formula against the cell data and checks if the result matches the expected answer.
-
----
-
-## Supported Excel functions
-
-| Function      | Example                    | Description                           |
-|---------------|----------------------------|---------------------------------------|
-| SUM           | `=SUM(A1:A5)`              | Add a range of cells                  |
-| AVERAGE       | `=AVERAGE(A1:A5)`          | Average of a range                    |
-| MIN           | `=MIN(A1:A5)`              | Smallest value in a range             |
-| MAX           | `=MAX(A1:A5)`              | Largest value in a range              |
-| COUNT         | `=COUNT(A1:A5)`            | Count cells in a range                |
-| IF            | `=IF(A1>10, A1, 0)`        | Conditional logic                     |
-| ROUND         | `=ROUND(A1, 2)`            | Round to N decimal places             |
-| ROUNDUP       | `=ROUNDUP(A1, 0)`          | Always round up                       |
-| ROUNDDOWN     | `=ROUNDDOWN(A1, 0)`        | Always round down                     |
-| INT           | `=INT(A1)`                 | Remove decimal part                   |
-| ABS           | `=ABS(A1)`                 | Absolute value (remove minus sign)    |
-| SQRT          | `=SQRT(A1)`                | Square root                           |
-| POWER         | `=POWER(A1, 2)`            | Raise to a power (A1 squared)         |
-| MOD           | `=MOD(A1, 3)`              | Remainder after division              |
-| PRODUCT       | `=PRODUCT(A1:A3)`          | Multiply all values in a range        |
-| SUMPRODUCT    | `=SUMPRODUCT(A1:A3, B1:B3)`| Multiply pairs, then sum              |
-| Basic math    | `=(A1+B1)*C1/2`            | Any arithmetic with +, -, *, /, ^    |
+1. [How it works](#1-how-it-works)
+2. [Teacher guide: setting up a question](#2-teacher-guide-setting-up-a-question)
+3. [Student experience](#3-student-experience)
+4. [Grading logic](#4-grading-logic)
+5. [Installation](#5-installation)
+6. [Testing locally (using a shared Moodle server)](#6-testing-locally-using-a-shared-moodle-server)
+7. [Architecture and file structure](#7-architecture-and-file-structure)
+8. [Customising the plugin](#8-customising-the-plugin)
+9. [Troubleshooting](#9-troubleshooting)
+10. [Version history](#10-version-history)
 
 ---
 
-## File structure
+## 1. How it works
+
+| Actor   | What they do |
+|---------|--------------|
+| Teacher | Uploads a **question spreadsheet** (what students see) and an **answer-key spreadsheet** whose cell Notes describe the accepted formulas. Reviews the detected answer cases, assigns marks, and saves. |
+| Student | Sees the worksheet(s) as a grid and answers each graded cell in order. Each submission is graded immediately through an AJAX call. |
+| Plugin  | Evaluates the student's formula against the sheet's cell values (PhpSpreadsheet), matches it to an answer case, awards that case's marks, and records the result on the live `question_attempt`. |
+
+---
+
+## 2. Teacher guide: setting up a question
+
+### 2.1 Question spreadsheet
+
+In **Question spreadsheet**, upload an `.xlsx` or `.xls` file. Every worksheet is
+parsed (values, bold/italic, fill colour, alignment, merged cells, column
+widths, row heights) and stored so students see each sheet as a tabbed grid.
+Formula cells are shown as their calculated values, never as formulas.
+
+### 2.2 Answer-key spreadsheet
+
+In **Answer key file**, upload an `.xlsx` or `.xls` workbook in which each
+**graded cell carries a classic Excel Note** (Review → Notes → New Note).
+Each Note defines that cell's answer cases.
+
+> Threaded comments are **not** supported. If one is found, detection fails and
+> names the cell. Convert it to a Note first.
+
+**Note syntax.** One `attribute: value` per line. A **blank line separates
+answer cases** within the same Note.
+
+| Attribute    | Required | Values |
+|--------------|----------|--------|
+| `formula`    | Yes      | One or more accepted formulas, separated by commas (see 2.4) |
+| `feedback`   | No       | Text shown when this case is the best match |
+| `credittype` | No       | `full`, `partial` or `hardcoded` (defaults to `full`) |
+
+Rules enforced by the parser:
+
+- Attribute names are case-insensitive. Lines that match no attribute are ignored.
+- A case with no `formula` is dropped.
+- An invalid `credittype` falls back to `full`.
+- **Marks are not read from the Note.** You set them in step 2.3.
+- Every worksheet is scanned. The sheet name is captured with each cell.
+
+Example Note on cell `B6`:
 
 ```
-qtype_excelformula/          ← This entire folder goes into Moodle
-│
-├── version.php              ← Plugin version info
-├── questiontype.php         ← Database load/save logic
-├── question.php             ← Grading logic + formula evaluator
-├── edit_excelformula_form.php ← Teacher's question editing form
-├── renderer.php             ← Student-facing display
-├── styles.css               ← Visual styling
-├── lang/
-│   └── en/
-│       └── qtype_excelformula.php  ← All text labels
-└── db/
-    └── install.xml          ← Database table definition
+formula: =SUM(B2:B4)
+feedback: Correct - VAT-exclusive total.
+credittype: full
+
+formula: =B2+B3+B4
+feedback: Accepted, but SUM is preferred.
+credittype: partial
 ```
 
----
+### 2.3 Detect and review answer cases
 
-## STEP 1 — Install on your local Moodle
+1. Click **Detect answer cases**. The summary reads
+   `Detected N cell(s) with N answer case(s).`
+2. Review the **Answer cases** accordion. Each graded cell is one **Answer N**
+   group, and each case inside it is one **Answer Case N** row.
+3. Set the marks. You can also add, edit or remove cells and cases by hand.
 
-1. Copy the entire `qtype_excelformula` folder to:
-   ```
-   C:\Moodle\server\moodle\question\type\excelformula\
-   ```
-   ⚠️ The folder name must be exactly `excelformula` (no "qtype_" prefix in the folder name).
+| Level | Field | Meaning |
+|-------|-------|---------|
+| Cell  | Cell reference | e.g. `B6` |
+| Cell  | Worksheet | Required. The same cell reference can exist on several sheets |
+| Cell  | Total marks | Maximum marks for this cell |
+| Cell  | Default feedback | Shown when no case matches |
+| Case  | Credit type | Full credit, Partial credit, or Hardcoded value |
+| Case  | Marks | Marks awarded when this case is the best match |
+| Case  | Accepted formulas | Comma-separated (see 2.4) |
+| Case  | Feedback | Shown when this case matches |
 
-2. Open your browser and go to:
-   ```
-   http://localhost/moodle
-   ```
+### 2.4 Writing accepted formulas
 
-3. Log in as admin.
+- The leading `=` is optional. Case and whitespace are ignored.
+- Separate several accepted formulas with commas. Commas inside parentheses
+  are treated as function arguments, so `=ROUND(SUM(B2:B4),2), =B2+B3+B4`
+  is two formulas.
+- **`full` / `partial`:** the student's formula text must match the accepted
+  formula (see 4.2 for what counts as a match).
+- **`hardcoded`:** the accepted text is a number (e.g. `1250.5`). It matches
+  when the *result* of the student's formula equals that number, whatever
+  formula produced it.
+- `$` markers are significant. `$B$6` and `B6` are different formulas, so you
+  can mark them as separate full/partial cases.
 
-4. Moodle will automatically detect the new plugin and show an **upgrade/install screen**.
+### 2.5 Validation on save
 
-5. Click **"Upgrade Moodle database now"**.
+The form is rejected unless:
 
-6. You're done. The plugin is now installed locally.
-
----
-
-## STEP 2 — Test the plugin locally
-
-1. In Moodle, go to a course and open (or create) a **Quiz** activity.
-
-2. In the quiz, click **"Add question"** and look for **"Excel Formula"** in the question type list.
-
-3. Fill in the form:
-   - **Cell data** (JSON format):
-     ```json
-     {"A1": 10, "A2": 20, "A3": 30, "B1": 5}
-     ```
-   - **Correct formula**: `=SUM(A1:A3)`
-   - **Expected result**: `60`
-   - **Tolerance**: `0.01`
-
-4. Save the question, then preview the quiz as a student.
-
-5. Try entering `=SUM(A1:A3)` — it should be graded correct.
-   Try entering `=A1+A2+A3` — it should also be correct (same result = 60).
-   Try entering `=SUM(A1:A2)` — it should be graded wrong (result = 30, not 60).
+- at least one graded cell exists;
+- every cell has a cell reference, a worksheet name and at least one case;
+- every case has at least one accepted formula;
+- all marks are numbers of 0 or greater, and every credit type is valid.
 
 ---
 
-## STEP 3 — Deploy to the live Moodle 4.5 server
+## 3. Student experience
 
-When you're happy with how it works locally:
+1. The question text and the worksheet grid(s) are shown. Multiple worksheets
+   appear as tabs.
+2. Cells are answered **one at a time, in the order defined by the teacher**.
+   Only the active cell's input is enabled, and its grid cell is highlighted
+   (the sheet tab switches automatically).
+3. The student clicks **Check** (or presses Enter). The formula is sent to the
+   server and graded immediately.
+4. After each submission the student sees:
+   - the mark (`Mark: x / y`);
+   - the matched case's feedback, or the cell's default feedback, or a generic
+     "try again" message if none is set;
+   - for retries, the number of attempts remaining.
+5. Each cell allows up to **3 attempts**. It locks when the student earns full
+   marks or uses all attempts, and the next cell then unlocks. Only the best
+   mark across attempts is kept.
+6. Progress is saved as steps on the question attempt, so reloading the page or
+   returning from the quiz summary does not lose it. On review, a cell that was
+   not fully correct shows its correct formula (the first accepted formula of
+   its first full-credit case).
 
-1. Copy the `qtype_excelformula` folder to the live server in the same location:
-   ```
-   /path/to/moodle/question/type/excelformula/
-   ```
-   (Ask your server admin or hosting provider for the exact Moodle root path.)
-
-2. Log in to the live Moodle as admin.
-
-3. Moodle will detect the new plugin and show the upgrade screen.
-
-4. Click **"Upgrade Moodle database now"**.
-
-5. Done — the question type is now available on the live server.
+The order is enforced **server-side** too. The grading service refuses a cell
+that is not the next ungraded one.
 
 ---
 
-## How to customise the plugin
+## 4. Grading logic
 
-### Add a new Excel function
+### 4.1 Evaluating a formula
 
-Open `question.php` and find the `switch ($funcname)` block inside `parse_function_call()`.
-Add a new `case` like this:
+The formula is written into a throwaway in-memory worksheet pre-filled with that
+sheet's cell values and calculated by **PhpSpreadsheet's Calculation engine**.
+Any function supported by PhpSpreadsheet is therefore usable. If the formula is
+empty, malformed, or does not produce a number, it evaluates to nothing and
+earns no marks.
+
+### 4.2 Matching a case
+
+For each case, each accepted formula is tested:
+
+| Credit type | Match rule |
+|-------------|------------|
+| `hardcoded` | Student's result equals the accepted number (tolerance 0.0001, to absorb floating-point rounding only) |
+| `full` / `partial` | Student's formula equals the accepted formula after normalisation (strip `=`, whitespace, case), **or** after canonicalisation |
+
+Canonicalisation makes operand order irrelevant for purely additive or purely
+multiplicative groups: `D9*$B$6` equals `$B$6*D9`, and `A1+B1` equals `B1+A1`.
+Subtraction and division stay order-significant, function arguments keep their
+order, and `$` markers are never altered.
+
+Formulas that are mathematically equivalent but structured differently
+(e.g. `SUM(B2:B4)` vs `B2+B3+B4`) are **not** treated as equal. Add each as its
+own case.
+
+The **highest-mark** matching case is used.
+
+### 4.3 Marks and state
+
+- Cell mark = the matched case's marks (0 if no case matches). Maximum = the
+  cell's total marks.
+- Cell state: **right** if mark ≥ maximum, **partial** if mark > 0, otherwise
+  **wrong**.
+- Question fraction = sum of each cell's best mark ÷ sum of all cells' total
+  marks.
+
+---
+
+## 5. Installation
+
+1. Copy this folder to `<moodle root>/question/type/excelformula/`.
+   The folder name must be exactly `excelformula` (no `qtype_` prefix).
+2. Log in as admin. Moodle detects the plugin.
+3. Click **Upgrade Moodle database now**.
+
+**Requirements:** Moodle 4.0 or later (`$plugin->requires = 2022041900`) and the
+PhpSpreadsheet library bundled in Moodle at
+`lib/phpspreadsheet/vendor/autoload.php`.
+
+**Deploying updates:** increment `$plugin->version` in `version.php`
+(format `YYYYMMDDNN`) and run the upgrade again. Schema changes belong in
+`db/upgrade.php`.
+
+---
+
+## 6. Testing locally (using a shared Moodle server)
+
+Use this when someone has shared a complete Moodle server (Moodle code, web
+server, PHP, database and `moodledata`) as a zip file, and you want to run it
+on your own machine.
+
+> The exact start-up step depends on how the server was packaged. The steps
+> below assume a Windows-style bundle (as in the original development setup,
+> e.g. `C:\Moodle\server\moodle\`). Ask the sender which stack it uses and the
+> admin login.
+
+### 6.1 Unzip
+
+1. Copy the zip to a **short path** on a local drive (e.g. `C:\Moodle\`), not
+   a synced or network folder.
+2. Unzip it there (right-click → *Extract All…*). Do not rename the extracted
+   folders, because `config.php` contains absolute paths.
+3. Confirm the plugin is present at
+   `...\server\moodle\question\type\excelformula\`. If it is missing, copy the
+   plugin folder there.
+
+### 6.2 Check `config.php`
+
+Open `...\server\moodle\config.php` and check:
+
+| Setting | What to verify |
+|---------|----------------|
+| `$CFG->wwwroot` | Matches the URL you will browse to, e.g. `http://localhost`, including the port if it is not 80 |
+| `$CFG->dataroot` | Points to the **unzipped** `moodledata` folder on *your* machine |
+| `$CFG->dbhost`, `dbname`, `dbuser`, `dbpass`, `dbtype` | Match the bundled database server's settings |
+
+If you unzipped to a different drive or folder than the original machine, update
+`dataroot` (and any other absolute paths) now.
+
+For plugin development, also add (remove for production):
 
 ```php
-case 'MYFUNCTION':
-    // Your logic here
-    // $args[0], $args[1], etc. are the function arguments
-    $value = $this->parse_expr(trim($args[0]), $cells);
-    return $value * 2; // Example: double the value
+$CFG->cachejs = false;
+$CFG->jsrev   = -1;
 ```
 
-### Change the appearance
+### 6.3 Start the servers
 
-Edit `styles.css`. All the class names are prefixed with `qtype_excelformula_` so they won't clash with anything else in Moodle.
+Start the bundled web server and database. Packaged Windows bundles usually
+provide a start script or executable in the server folder. Keep it running
+while you test. If a port is already in use, stop the other program or change
+the port in the web server config and update `$CFG->wwwroot` to match.
 
-### Change the form labels or messages
+### 6.4 Log in and upgrade
 
-All text strings are in `lang/en/qtype_excelformula.php`.
-Edit the values (the text in quotes on the right side of `=`).
-Do NOT change the variable names (the part before `=`).
+1. Browse to `http://localhost/moodle` (or your `wwwroot`).
+2. Log in with the admin credentials. username: yolanit password: Mbalentl3!
+3. If the plugin version is newer than the installed one, Moodle shows the
+   upgrade screen. Click **Upgrade Moodle database now**.
+4. Purge caches: *Site administration → Development → Purge all caches*.
 
-### Bump the version number
+### 6.5 Run a test
 
-Every time you make changes and want to deploy an update to the live server,
-increment the version number in `version.php`:
-```php
-$plugin->version = 2024010101;  // Increment the last two digits
-```
+1. Open a course, then a **Quiz** (or create one).
+2. *Add question → Excel Formula*.
+3. Upload a **question spreadsheet**, then an **answer-key spreadsheet** with
+   Notes as described in [2.2](#22-answer-key-spreadsheet).
+4. Click **Detect answer cases**, set the marks, and save.
+5. Preview the quiz and check:
+   - the grid and sheet tabs display correctly;
+   - the first graded cell is active and highlighted;
+   - a full-credit formula locks the cell and unlocks the next one;
+   - a partial/wrong formula shows feedback and the attempts remaining;
+   - a cell locks after the 3rd attempt;
+   - reloading the page keeps your progress.
 
 ---
 
-## Cell data format reference
+## 7. Architecture and file structure
 
-Cell data must be entered in **JSON format**. Here are examples:
+The plugin follows Moodle's question-type conventions: model (`question.php`,
+`questiontype.php`), view (`renderer.php`, AMD modules) and controller-style
+external services.
 
-```json
-{"A1": 10, "A2": 20, "A3": 30}
 ```
-```json
-{"A1": 100, "B1": 200, "C1": 300, "A2": 50, "B2": 75, "C2": 25}
-```
-```json
-{"Revenue": 50000, "Cost": 32000}
+excelformula/
+├── version.php                    Plugin version and requirements
+├── questiontype.php               Save/load options, answers and cases; build question instance
+├── question.php                   Grading, case matching, formula evaluation, per-cell attempt state
+├── edit_excelformula_form.php     Teacher form (filepickers, detect button, accordion container)
+├── renderer.php                   Student view: grid, sheet tabs, per-cell answer blocks
+├── styles.css                     Grid, answer-block and accordion styling
+├── classes/
+│   ├── spreadsheet_parser.php     parse() for the question grid; parse_answer_key() for Notes
+│   └── external/
+│       ├── detect_answercases.php Teacher AJAX: parse answer-key Notes (read-only)
+│       └── grade_cell.php         Student AJAX: grade one cell and record an attempt step
+├── amd/src/
+│   ├── answer_cases.js            Nested cell → case accordion; state kept in a hidden JSON field
+│   ├── answerkey_parser.js        Detect button; calls detect_answercases
+│   ├── cell_answer.js             One-cell-at-a-time flow; calls grade_cell
+│   └── sheet_tabs.js              Worksheet tab switching
+├── db/
+│   ├── install.xml                Table definitions
+│   ├── services.php               External function registration
+│   └── upgrade.php                Schema migrations
+└── lang/en/qtype_excelformula.php All user-facing strings
 ```
 
-> **Note:** Cell names don't have to be traditional Excel references (A1, B2, etc.).
-> You can use any labels, but make sure your formula uses the same labels you defined.
+### Database tables
+
+| Table | Rows | Holds |
+|-------|------|-------|
+| `qtype_excelformula_options` | 1 per question | File item ids and `spreadsheetdata` (parsed grid JSON for all sheets) |
+| `qtype_excelformula_answers` | 1 per graded cell | `cellref`, `sheetname`, `markallocation`, `defaultfeedback` |
+| `qtype_excelformula_anscase` | 1 per answer case | `casemark`, `casetype`, `answertext`, `casefeedback` |
+
+### Attempt data (per graded cell, stored on the question attempt)
+
+| Key | Purpose |
+|-----|---------|
+| `attempts_{ansid}` | Submissions used so far |
+| `bestmark_{ansid}` | Best mark across attempts |
+| `answer_{ansid}` | Final formula, written **only when the cell locks**. Its presence marks the cell as done and advances the sequence |
+
+`question.php`, `grade_cell.php` and `renderer.php` must agree on these key names.
 
 ---
 
-## Troubleshooting
+## 8. Customising the plugin
+
+- **Appearance:** edit `styles.css`. Class names are prefixed
+  `qtype_excelformula_` (student view) and `excelformula-` (teacher form).
+- **Text:** edit `lang/en/qtype_excelformula.php`. Change only the values,
+  never the string keys.
+- **Attempts per cell:** change `MAX_ATTEMPTS_PER_CELL` in `question.php`.
+- **JavaScript:** with `$CFG->cachejs = false` and `$CFG->jsrev = -1`, Moodle
+  serves `amd/src` directly. For production run `grunt amd` from the Moodle
+  root to build `amd/build`.
+
+---
+
+## 9. Troubleshooting
 
 | Problem | Solution |
-|---|---|
-| Plugin not showing in question type list | Check the folder is named exactly `excelformula` (not `qtype_excelformula`) |
-| "Upgrade Moodle database" screen not appearing | Clear Moodle's cache: Site admin → Development → Purge all caches |
-| Student's formula gives wrong result | Check the Expected result value matches what your formula actually produces |
-| JSON error on cell data | Validate your JSON at https://jsonlint.com |
-| Formula evaluates to null | Check that cell references in the formula match the keys in the cell data (case-insensitive) |
+|---------|----------|
+| Plugin not in the question type list | Folder must be named exactly `excelformula`. Purge all caches |
+| No upgrade screen after copying | Increase `$plugin->version`, then purge caches |
+| Detect answer cases reports an error about a threaded comment | Replace the comment with a classic Note in Excel |
+| Detect finds 0 cells | Notes must be classic Notes with at least one `formula:` line, and the answer-key file must be uploaded first |
+| Student's correct formula scores 0 | Check the case's accepted formula and `$` markers, and the cell's worksheet name matches the sheet exactly |
+| Equivalent formula not accepted | Add it as its own answer case (see 4.2) |
+| Detect/Check buttons do nothing | Check the browser console. Purge caches and confirm `db/services.php` changes were upgraded |
+| Blank page or path errors on a shared server | `dataroot` or `wwwroot` in `config.php` does not match this machine (see 6.2) |
 
 ---
 
-## Version history
+## 10. Version history
 
-| Version    | Date       | Notes                     |
-|------------|------------|---------------------------|
-| 1.0        | 2024-01-01 | Initial release           |
+| Version | Date       | Notes |
+|---------|------------|-------|
+| 1.0     | 2026-10-12 | Initial iteration of the artefact |
